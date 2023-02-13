@@ -1,0 +1,172 @@
+---
+title: "apm466a1"
+output: html_document
+---
+
+```{r}
+install.packages("jrvFinance")
+library("jrvFinance")
+install.packages("lubridate")
+library(readxl)
+bond <- read_excel("bond list.xlsx", sheet = 1)
+#View(bond)
+
+coupon_payment <- as.numeric(bond$Coupon)
+maturity_date <- gsub(x = bond$'Maturity_Date', pattern = " ", replacement = "", fixed = T)
+close_price_date <- c("2023-01-16", "2023-01-17", "2023-01-18", "2023-01-19", "2023-01-20","2023-01-23", "2023-01-24", "2023-01-25", "2023-01-26", "2023-01-27")
+close_price_matrix = matrix(c(bond$'44942.0', bond$'44943.0', bond$'44944.0', bond$'44945.0', bond$'44946.0', bond$'44949.0', bond$'44950.0', bond$'44951.0', bond$'44952.0', bond$'44953.0'), nrow = 10, ncol = 10, byrow = TRUE)
+
+ytm_matrix = matrix("numeric", nrow = 10, ncol = 10)
+for(j in c(1:10)){
+  close_price = close_price_matrix[,j]
+  for(i in c(1:10)){
+    ytm_matrix[i,j] <- bond.yield(settle = close_price_date[i], mature = maturity_date[j], coupon = coupon_payment[j], freq = 2, close_price[i], convention = c("30/360", "ACT/ACT", "ACT/360", "30/360E"), comp.freq = 2, redemption_value = 100)
+  }
+}
+
+year_frac = matrix('numeric', nrow = 10, ncol = 10)
+for(i in c(1:10)){
+  for(j in c(1:10)){
+    year_frac[i,j] = yearFraction(close_price_date[i], maturity_date[j], freq = 2, convention = c("30/360", "ACT/ACT", "ACT/360", "30/360E"))
+  }
+}
+
+year <- c(0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5)
+plot(year, ytm_matrix[1,], type = "o", main = 'YTM Curve', col = "black", xlab = "YEAR", ylab = "YTM",ylim = c(0.02,0.06), lwd = 1.0)
+for(i in c(2:10 )){
+  lines(year, ytm_matrix[i,], type = 'o', col = c("red", "orange", "cadetblue", "coral", "blue", "firebrick", "yellow", "purple","darkgray", "green")[i - 1], lwd = 1.0)
+}
+legend("topright", pch = c(15, 15), legend = c("2023-01-16", "2023-01-17", "2023-01-18", "2023-01-19", "2023-01-20","2023-01-23", "2023-01-24", "2023-01-25", "2023-01-26", "2023-01-27"), col = c(1,2,3,4,5,6,7,8,9,10), lty = 1.5, cex = 0.7)
+
+ytm_matrix
+###b)
+dirty_price <- matrix('numeric', nrow = 10, ncol = 10)
+for(j in 1:10){
+  for(i in 1:10){
+    dirty_price[j,i] = bond.TCF(close_price_date[j], maturity_date[i], coupon_payment[i], freq = 2, redemption_value = 100)$accrued + close_price_matrix[j,i]
+  }
+}
+
+cf <- list()
+for(i in 1:10){
+  cf = bond.TCF(close_price_date[i], maturity_date[i], coupon_payment[i], freq = 2, redemption_value = 100)$cf
+}
+
+cf_1 = c(100.75)
+cf_2 = c(104)
+cf_3 = c(1.25, 1.25, 101.25)
+cf_4 = c(0.75, 0.75, 0.75, 100.75)
+cf_5 = c(4.5, 4.5, 4.5, 4.5, 104.5)
+cf_6 = c(1.5, 1.5, 1.5, 1.5, 1.5, 101.5)
+cf_7 = c(0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 100.125)
+cf_8 = c(0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 100.5)
+cf_9 = c(0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 0.625, 100.625)
+cf_10 = c(1.375, 1.375, 1.375, 1.375, 1.375, 1.375, 1.375, 1.375, 1.375, 101.375)
+
+spot_matrix <- matrix(nrow = 10, ncol = 10)
+for(i in 1:10){
+  t_1 = as.numeric(year_frac[i,1])
+  sf_1 = function(x) as.numeric(dirty_price[i,1])-cf_1[1]*(1+x/2)^(-2*t_1)
+  s_1 = uniroot(sf_1, c(0,1))$root
+  
+  t_2 = as.numeric(year_frac[i,2])
+  sf_2 = function(x) as.numeric(dirty_price[i,2])-cf_2[1]*(1+x/2)^(-2*t_1)
+  s_2 = uniroot(sf_2, c(0,1))$root
+  
+  t_3 = as.numeric(year_frac[i,3])
+  sf_3 = function(x) as.numeric(dirty_price[i,3])-cf_3[1]*(1+s_1/2)^(-2*(t_3 - 0.5*2))-cf_3[2]*(1+s_2/2)^(-2*(t_3 - 0.5*1))- cf_3[3]*(1+x/2)^(-2*t_3)
+  s_3 = uniroot(sf_3, c(0,1))$root
+  
+  t_4 = as.numeric(year_frac[i,4])
+  sf_4 = function(x) as.numeric(dirty_price[i,4])-cf_4[1]*(1+s_1/2)^(-2*(t_4 - 0.5*3))-cf_4[2]*(1+s_2/2)^(-2*(t_4 - 0.5*2))- cf_4[3]*(1+s_3/2)^(-2*(t_4 - 0.5*1))-cf_4[4]*(1+x/2)^(-2*t_4)
+  s_4 = uniroot(sf_4, c(0,1))$root
+  
+  t_5 = as.numeric(year_frac[i,5])
+  sf_5 = function(x) as.numeric(dirty_price[i,5])-cf_5[1]*(1+s_1/2)^(-2*(t_5 - 0.5*4))-cf_5[2]*(1+s_2/2)^(-2*(t_5 - 0.5*3))- cf_5[3]*(1+s_3/2)^(-2*(t_5 - 0.5*2))-cf_5[4]*(1+s_4/2)^(-2*(t_5 - 0.5*1))-cf_5[5]*(1+x/2)^(-2*t_5)
+  s_5 = uniroot(sf_5, c(0,1))$root
+  
+  t_6 = as.numeric(year_frac[i,6])
+  sf_6 = function(x) as.numeric(dirty_price[i,6])-cf_6[1]*(1+s_1/2)^(-2*(t_6 - 0.5*5))-cf_6[2]*(1+s_2/2)^(-2*(t_6 - 0.5*4))- cf_6[3]*(1+s_3/2)^(-2*(t_6 - 0.5*3))-cf_6[4]*(1+s_4/2)^(-2*(t_6 - 0.5*2))-cf_6[5]*(1+s_5/2)^(-2*(t_6 - 0.5*1))-cf_6[6]*(1+x/2)^(-2*t_6)
+  s_6 = uniroot(sf_6, c(0,1))$root
+  
+  t_7 = as.numeric(year_frac[i,7])
+  sf_7 = function(x) as.numeric(dirty_price[i,7])-cf_7[1]*(1+s_1/2)^(-2*(t_7 - 0.5*6))-cf_7[2]*(1+s_2/2)^(-2*(t_7 - 0.5*5))- cf_7[3]*(1+s_3/2)^(-2*(t_7 - 0.5*4))-cf_7[4]*(1+s_4/2)^(-2*(t_7 - 0.5*3))-cf_7[5]*(1+s_5/2)^(-2*(t_7 - 0.5*2))-cf_7[6]*(1+s_6/2)^(-2*(t_7 - 0.5*1))-cf_7[7]*(1+x/2)^(-2*t_7)
+  s_7 = uniroot(sf_7, c(0,1))$root
+  
+  t_8 = as.numeric(year_frac[i,8])
+  sf_8 = function(x) as.numeric(dirty_price[i,8])-cf_8[1]*(1+s_1/2)^(-2*(t_8 - 0.5*7))-cf_8[2]*(1+s_2/2)^(-2*(t_8 - 0.5*6))- cf_8[3]*(1+s_3/2)^(-2*(t_8 - 0.5*5))-cf_8[4]*(1+s_4/2)^(-2*(t_8 - 0.5*4))-cf_8[5]*(1+s_5/2)^(-2*(t_8 - 0.5*3))-cf_8[6]*(1+s_6/2)^(-2*(t_8 - 0.5*2))-cf_8[7]*(1+s_7/2)^(-2*(t_8 - 0.5*1))-cf_8[8]*(1+x/2)^(-2*t_8)
+  s_8 = uniroot(sf_8, c(0,1))$root
+  
+  t_9 = as.numeric(year_frac[i,9])
+  sf_9 = function(x) as.numeric(dirty_price[i,9])-cf_9[1]*(1+s_1/2)^(-2*(t_9 - 0.5*8))-cf_9[2]*(1+s_2/2)^(-2*(t_9 - 0.5*7))- cf_9[3]*(1+s_3/2)^(-2*(t_9 - 0.5*6))-cf_9[4]*(1+s_4/2)^(-2*(t_9 - 0.5*5))-cf_9[5]*(1+s_5/2)^(-2*(t_9 - 0.5*4))-cf_9[6]*(1+s_6/2)^(-2*(t_9 - 0.5*3))-cf_9[7]*(1+s_7/2)^(-2*(t_9 - 0.5*2))-cf_9[8]*(1+s_8/2)^(-2*(t_9 - 0.5*1))-cf_9[9]*(1+x/2)^(-2*t_9)
+  s_9 = uniroot(sf_9, c(0,1))$root
+  
+  t_10 = as.numeric(year_frac[i,10])
+  sf_10 = function(x) as.numeric(dirty_price[i,10])-cf_10[1]*(1+s_1/2)^(-2*(t_10 - 0.5*9))-cf_10[2]*(1+s_2/2)^(-2*(t_10 - 0.5*8))- cf_10[3]*(1+s_3/2)^(-2*(t_10 - 0.5*7))-cf_10[4]*(1+s_4/2)^(-2*(t_10 - 0.5*6))-cf_10[5]*(1+s_5/2)^(-2*(t_10 - 0.5*5))- cf_10[6]*(1+s_6/2)^(-2*(t_10 - 0.5*4))-cf_10[7]*(1+s_7/2)^(-2*(t_10 - 0.5*3))-cf_10[8]*(1+s_8/2)^(-2*(t_10 - 0.5*2))- cf_10[9]*(1+s_9/2)^(-2*(t_10 - 0.5*1))-cf_10[10]*(1+x/2)^(-2*t_10)
+  s_10 = uniroot(sf_10, c(0,1))$root
+  
+  s = rbind(s_1, s_2, s_3, s_4, s_5, s_6, s_7, s_8, s_9, s_10)
+  spot_matrix[i,] <- s
+}
+
+year <- c(0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5)
+plot(year, spot_matrix[1,], type = "o", main = 'Spot Curve', col = "black", xlab = "YEAR", ylab = "Spot Rate", ylim = c(0.02,0.06),lwd = 0.8)
+for(i in c(2:10 )){
+  lines(year, spot_matrix[i,], type = 'o', col = c("red", "orange", "cadetblue", "coral", "blue", "firebrick", "yellow", "purple","darkgray", "green")[i - 1], lwd = 0.8)
+}
+legend("topright", pch = c(15, 15), legend = c("2023-01-16", "2023-01-17", "2023-01-18", "2023-01-19", "2023-01-20","2023-01-23", "2023-01-24", "2023-01-25", "2023-01-26", "2023-01-27"), col = c(1,2,3,4,5,6,7,8,9,10), lty = 1.5, cex = 0.7)
+
+###c
+forward_matrix = matrix(nrow = 10, ncol = 4)
+for(j in c(1:10)){
+  for(i in c(1:4)){
+    ff = function(x) ((1+spot_matrix[j,1]/2)^2)*((1+x/2)^(2*i)) - (1+spot_matrix[j,i+1]/2)^(2*(i+1))
+    forward_matrix[j,i] <- uniroot(ff,c(0,1))$root
+  }
+}
+year <- c(2,3,4,5)
+plot(year,forward_matrix[1, ], type = "o", main = 'Forward Curve', col = "black", xlab = "Year", ylab = "Forward Rate",ylim = c(0.02,0.06),lwd=0.8)
+for (i in c(2:10)){ 
+  lines(year, forward_matrix[i,], type = "o", col = c("red", "orange", "cadetblue", "coral", "blue", "firebrick", "yellow", "purple","darkgray","green")[i-1],lwd=0.8)
+}
+
+legend("topright",pch = c(15,15),legend=c("2023-01-16", "2023-01-17", "2023-01-18", "2023-01-19", "2023-01-20","2023-01-23", "2023-01-24", "2023-01-25", "2023-01-26", "2023-01-27"), col = c(1,2,3,4,5,6,7,8,9,10), lty = 1.5, cex = 0.7)
+
+###Q5
+
+log_ytm_matrix <- matrix(nrow = 9, ncol = 5)
+
+for (i in c(1:5)) {
+  for(j in c(1:9)){
+    
+  log_ytm_matrix[j,i] <- log(as.numeric(ytm_matrix[(j+1),i])/as.numeric(ytm_matrix[j,i]))
+  }
+}
+log_ytm_matrix
+# covariance matrix for ytm
+ytm_cov <- cov(log_ytm_matrix,log_ytm_matrix)
+print(ytm_cov)
+
+# eigenvalues and eigenvectors for ytm cov matrix
+print(eigen(ytm_cov)$values)
+print(eigen(ytm_cov)$vectors)
+
+log_forward_matrix <- matrix(nrow = 9, ncol = 4)
+
+for (i in c(1:4)) {
+  for(j in c(1:9)){
+    log_forward_matrix[j, i] <- log(forward_matrix[(j+1),i]/forward_matrix[j,i])
+  }
+}
+log_forward_matrix
+
+# covariance matrix for forward rate
+fwd_cov <- cov(log_forward_matrix,log_forward_matrix)
+print(fwd_cov)
+
+# eigenvalues and eigenvectors for fwd cov matrix
+print(eigen(fwd_cov)$values)
+print(eigen(fwd_cov)$vectors)
+```
+
+
